@@ -6,7 +6,12 @@ public class EventStoreShould
 {
     private EventStore CreateDefaultEventStore(IEventPersistor? persistor = null)
     {
-        return new EventStore(persistor ?? Substitute.For<IEventPersistor>());
+        var provider = new ListAggregatorProvider();
+        provider.Register<Person>(new PersonEventAggregator());
+
+        return new EventStore(
+            persistor ?? Substitute.For<IEventPersistor>(),
+            provider);
     }
 
     [Fact]
@@ -21,7 +26,6 @@ public class EventStoreShould
         Assert.Equal("John Doe", restoredPerson!.Name);
     }
 
-
     [Fact]
     public async Task PersistEventsInPersistor()
     {
@@ -34,46 +38,105 @@ public class EventStoreShould
         await eventPersistor.Received().Persist(person.Id, Arg.Any<PersonCreatedEvent>());
         await eventPersistor.Received().Persist(person.Id, Arg.Any<PersonNameUpdatedEvent>());
     }
+
+
+    [Fact]
+    public async Task PersonRetrievedIsNewInstance()
+    {
+        var eventStore = CreateDefaultEventStore();
+        var person = new Person(new PersonCreatedEvent("John"));
+        person.UpdateName(new PersonNameUpdatedEvent("John Doe"));
+        await eventStore.Save(person);
+
+        var restoredPerson = await eventStore.Find<Person>(person.Id);
+        Assert.NotSame(person, restoredPerson);
+    }
+
+}
+
+public class ListAggregatorProvider : IEventAggregatorProvider
+{
+    private readonly Dictionary<Type, object> _aggregators = new();
+
+    public void Register<TAggregation>(IEventAggregator<TAggregation> aggregator)
+    {
+        _aggregators.Add(typeof(TAggregation), aggregator);
+    }
+
+    public IEventAggregator<TAggregation> GetAggregator<TAggregation>()
+    {
+        throw new NotImplementedException();
+    }
 }
 
 public interface IEventPersistor
 {
-    Task Persist(object aggregateRootId, object evt);
+    Task Persist(object stateHolderId, object evt);
+
+    Task<IEnumerable<object>> GetEvents(object stateHolderId);
+}
+
+public interface IEventAggregatorProvider
+{
+    IEventAggregator<TAggregation> GetAggregator<TAggregation>();
+}
+
+public interface IEventAggregator<TAggregation>
+{
+    TAggregation Aggregate(TAggregation? aggregation, object evt);
 }
 
 public class EventStore
 {
-    private readonly IEventPersistor _eventPersistor;
+    private readonly IEventPersistor _persistor;
+    private readonly IEventAggregatorProvider _aggregatorProvider;
 
-    public EventStore(IEventPersistor eventPersistor)
+    public EventStore(IEventPersistor eventPersistor, IEventAggregatorProvider aggregatorProvider)
     {
-        _eventPersistor = eventPersistor;
+        _persistor = eventPersistor;
+        _aggregatorProvider = aggregatorProvider;
     }
 
     private object _obj = null!;
 
     public async Task<TAggregateRoot?> Find<TAggregateRoot>(object id)
     {
-        await Task.CompletedTask;
-        return (TAggregateRoot?)_obj;
+        var events = await _persistor.GetEvents(id);
+        var aggregator = _aggregatorProvider.GetAggregator<TAggregateRoot>();
+        var aggregation = events.Aggregate(default(TAggregateRoot?), aggregator.Aggregate);
+        return aggregation;
     }
 
     public async Task Save<TAggregateRoot>(TAggregateRoot aggregateRoot)
-        where TAggregateRoot : IStateHolder
+        where TAggregateRoot : IAggregation
     {
         await Task.CompletedTask;
         var (id, events) = aggregateRoot.GetState();
-        events.ToList().ForEach(evt => _eventPersistor.Persist(id, evt));
+        events.ToList().ForEach(evt => _persistor.Persist(id, evt));
         _obj = aggregateRoot;
     }
 }
 
-public interface IStateHolder
+public interface IAggregation
 {
-    (object AggregateRootId, IReadOnlyList<object> Events) GetState();
+    (object AggregationId, IReadOnlyList<object> Events) GetState();
 }
 
-public class Person : IStateHolder
+public class PersonEventAggregator : IEventAggregator<Person>
+{
+    public Person Aggregate(Person? person, object evt)
+    {
+        if (evt is PersonCreatedEvent created)
+            return new Person(created);
+
+        if (evt is PersonNameUpdatedEvent updated)
+            person!.UpdateName(updated);
+
+        return person!;
+    }
+}
+
+public class Person : IAggregation
 {
     private readonly List<object> _events = new();
 
