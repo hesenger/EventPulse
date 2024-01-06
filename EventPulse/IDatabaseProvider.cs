@@ -4,5 +4,5 @@ namespace EventPulse;
 
 public interface IDatabaseProvider
 {
-    IDbCommand GetCommand();
+    IDbConnection GetConnection();
 }

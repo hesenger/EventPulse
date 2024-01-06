@@ -7,25 +7,23 @@ public class SqlServerEventPersistor : IEventPersistor
     private readonly IDatabaseProvider _database;
     private readonly IEventSerializer _serializer;
 
-    public SqlServerEventPersistor(
-        IDatabaseProvider databaseProvider,
-        IEventSerializer eventDeserializar
-    )
+    public SqlServerEventPersistor(IDatabaseProvider databaseProvider, IEventSerializer serializer)
     {
         _database = databaseProvider;
-        _serializer = eventDeserializar;
+        _serializer = serializer;
     }
 
     public async Task Persist(object aggregationId, object evt)
     {
         await Task.CompletedTask;
 
-        using var command = _database.GetCommand();
+        using var cnx = _database.GetConnection();
+        using var command = cnx.CreateCommand();
         command.CommandText =
             "INSERT INTO Events (AggregationId, EventType, EventData, Timestamp) "
             + "VALUES (@AggregationId, @EventType, @EventData, @Timestamp)";
         AddParameter(command, "@AggregationId", aggregationId);
-        AddParameter(command, "@EventType", evt.GetType().Name);
+        AddParameter(command, "@EventType", evt.GetType().FullName!);
         AddParameter(command, "@EventData", _serializer.Serialize(evt));
         AddParameter(command, "@Timestamp", DateTime.UtcNow);
 
@@ -34,7 +32,10 @@ public class SqlServerEventPersistor : IEventPersistor
 
     public async Task<IEnumerable<object>> GetEvents(object aggregationId)
     {
-        using var command = _database.GetCommand();
+        await Task.CompletedTask;
+
+        using var cnx = _database.GetConnection();
+        using var command = cnx.CreateCommand();
         command.CommandText =
             "SELECT EventType, EventData FROM Events WHERE AggregationId = @AggregationId ORDER BY Timestamp ASC";
         AddParameter(command, "@AggregationId", aggregationId);
