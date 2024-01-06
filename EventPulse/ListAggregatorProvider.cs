@@ -11,6 +11,6 @@ public class ListAggregatorProvider : IEventAggregatorProvider
 
     public IEventAggregator<TAggregation> GetAggregator<TAggregation>()
     {
-        throw new NotImplementedException();
+        return (IEventAggregator<TAggregation>)_aggregators[typeof(TAggregation)];
     }
 }

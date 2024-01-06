@@ -8,9 +8,12 @@ public class EventStoreShould
     private EventStore CreateDefaultEventStore(IEventPersistor? persistor = null)
     {
         var provider = new ListAggregatorProvider();
-        provider.Register<Person>(new PersonEventAggregator());
+        provider.Register(new PersonEventAggregator());
 
-        return new EventStore(persistor ?? Substitute.For<IEventPersistor>(), provider);
+        return new EventStore(
+            persistor ?? Substitute.ForPartsOf<InMemoryEventPersistor>(),
+            provider
+        );
     }
 
     [Fact]
@@ -28,7 +31,7 @@ public class EventStoreShould
     [Fact]
     public async Task PersistEventsInPersistor()
     {
-        var eventPersistor = Substitute.For<IEventPersistor>();
+        var eventPersistor = Substitute.ForPartsOf<InMemoryEventPersistor>();
         var eventStore = CreateDefaultEventStore(eventPersistor);
         var person = new Person(new PersonCreatedEvent("John"));
         person.UpdateName(new PersonNameUpdatedEvent("John Doe"));
@@ -39,7 +42,7 @@ public class EventStoreShould
     }
 
     [Fact]
-    public async Task PersonRetrievedIsNewInstance()
+    public async Task RetrieveNewInstanteOfPerson()
     {
         var eventStore = CreateDefaultEventStore();
         var person = new Person(new PersonCreatedEvent("John"));
@@ -47,6 +50,7 @@ public class EventStoreShould
         await eventStore.Save(person);
 
         var restoredPerson = await eventStore.Find<Person>(person.Id);
+        Assert.NotNull(restoredPerson);
         Assert.NotSame(person, restoredPerson);
     }
 }

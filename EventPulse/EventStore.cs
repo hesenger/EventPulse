@@ -11,8 +11,6 @@ public class EventStore
         _aggregatorProvider = aggregatorProvider;
     }
 
-    private object _obj = null!;
-
     public async Task<TAggregateRoot?> Find<TAggregateRoot>(object id)
     {
         var events = await _persistor.GetEvents(id);
@@ -27,6 +25,5 @@ public class EventStore
         await Task.CompletedTask;
         var (id, events) = aggregateRoot.GetState();
         events.ToList().ForEach(evt => _persistor.Persist(id, evt));
-        _obj = aggregateRoot;
     }
 }
