@@ -10,10 +10,7 @@ public class EventStoreShould
         var provider = new ListAggregatorProvider();
         provider.Register(new PersonEventAggregator());
 
-        return new EventStore(
-            persistor ?? Substitute.ForPartsOf<InMemoryEventPersistor>(),
-            provider
-        );
+        return new EventStore(persistor ?? new InMemoryEventPersistor(), provider);
     }
 
     [Fact]
@@ -52,5 +49,13 @@ public class EventStoreShould
         var restoredPerson = await eventStore.Find<Person>(person.Id);
         Assert.NotNull(restoredPerson);
         Assert.NotSame(person, restoredPerson);
+    }
+
+    [Fact]
+    public async Task RetrieveNullWhenAggregateRootNotFound()
+    {
+        var eventStore = CreateDefaultEventStore();
+        var restoredPerson = await eventStore.Find<Person>(Guid.NewGuid());
+        Assert.Null(restoredPerson);
     }
 }
