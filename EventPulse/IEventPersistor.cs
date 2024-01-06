@@ -2,7 +2,7 @@ namespace EventPulse;
 
 public interface IEventPersistor
 {
-    Task Persist(object stateHolderId, object evt);
+    Task Persist(object aggregationId, object evt);
 
-    Task<IEnumerable<object>> GetEvents(object stateHolderId);
+    Task<IEnumerable<object>> GetEvents(object aggregationId);
 }

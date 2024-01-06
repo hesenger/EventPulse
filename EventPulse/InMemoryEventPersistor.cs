@@ -4,20 +4,20 @@ public class InMemoryEventPersistor : IEventPersistor
 {
     private readonly Dictionary<object, List<object>> _events = new();
 
-    public Task Persist(object stateHolderId, object evt)
+    public Task Persist(object aggregationId, object evt)
     {
-        if (!_events.ContainsKey(stateHolderId))
-            _events.Add(stateHolderId, new List<object>());
+        if (!_events.ContainsKey(aggregationId))
+            _events.Add(aggregationId, new List<object>());
 
-        _events[stateHolderId].Add(evt);
+        _events[aggregationId].Add(evt);
         return Task.CompletedTask;
     }
 
-    public Task<IEnumerable<object>> GetEvents(object stateHolderId)
+    public Task<IEnumerable<object>> GetEvents(object aggregationId)
     {
-        if (!_events.ContainsKey(stateHolderId))
+        if (!_events.ContainsKey(aggregationId))
             return Task.FromResult(Enumerable.Empty<object>());
 
-        return Task.FromResult(_events[stateHolderId].AsEnumerable());
+        return Task.FromResult(_events[aggregationId].AsEnumerable());
     }
 }
