@@ -16,7 +16,7 @@ usage and advanced features.
 The events can be stored using the following implementations:
 
 - InMemoryEventPersistor: useful for testing purposes;
-- SqlServerEventPersistor: using a single append only table on SQL Server;
+- SqlServerEventPersistor: using a single append-only table on SQL Server;
 - PostgreSqlEventPersistor: **planned**;
 
 ## Building it locally
@@ -24,5 +24,6 @@ The events can be stored using the following implementations:
 Just clone this repo and run the following commands available the Makefile, or
 use them as reference to run the commands manually.
 
+- `make startdb`: start docker instances for database tests;
 - `make build`: build the library;
 - `make test`: run tests and if success, generate the coverage report;
