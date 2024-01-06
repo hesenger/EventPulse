@@ -33,6 +33,10 @@ use them as reference to run the commands manually.
 
 ## Usage
 
+For web apps you likely want to register the EventStore instance in your
+service provider, but in fact there is no harm in using multiple instances or
+even a simple singlton since the actions are very atomic and not state dependant.
+
 ```csharp
 var provider = new ListAggregatorProvider();
 provider.Register(new PersonEventAggregator());
