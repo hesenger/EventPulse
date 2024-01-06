@@ -30,3 +30,18 @@ use them as reference to run the commands manually.
 - `make build`: build the library;
 - `make test`: run tests and if success, generate the coverage report;
 - `make stopdb`: stop docker instances;
+
+## Usage
+
+```csharp
+var provider = new ListAggregatorProvider();
+provider.Register(new PersonEventAggregator());
+var eventStore = new EventStore(new InMemoryEventPersistor(), provider);
+
+var person = new Person(new PersonCreatedEvent("John"));
+person.UpdateName(new PersonNameUpdatedEvent("John Doe"));
+await eventStore.Save(person);
+
+var restoredPerson = await eventStore.Find<Person>(person.Id);
+Assert.Equal("John Doe", restoredPerson!.Name);
+```
