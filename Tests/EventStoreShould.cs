@@ -17,7 +17,7 @@ public class EventStoreShould
     public async Task RetrieveAggregateRootFullyRestored()
     {
         var eventStore = CreateDefaultEventStore();
-        var person = new Person(new PersonCreatedEvent("John"));
+        var person = new Person(PersonCreatedEvent.Create("John"));
         person.UpdateName(new PersonNameUpdatedEvent("John Doe"));
         await eventStore.Save(person);
 
@@ -30,7 +30,7 @@ public class EventStoreShould
     {
         var eventPersistor = Substitute.ForPartsOf<InMemoryEventPersistor>();
         var eventStore = CreateDefaultEventStore(eventPersistor);
-        var person = new Person(new PersonCreatedEvent("John"));
+        var person = new Person(PersonCreatedEvent.Create("John"));
         person.UpdateName(new PersonNameUpdatedEvent("John Doe"));
         await eventStore.Save(person);
 
@@ -42,7 +42,7 @@ public class EventStoreShould
     public async Task RetrieveNewInstanteOfPerson()
     {
         var eventStore = CreateDefaultEventStore();
-        var person = new Person(new PersonCreatedEvent("John"));
+        var person = new Person(PersonCreatedEvent.Create("John"));
         person.UpdateName(new PersonNameUpdatedEvent("John Doe"));
         await eventStore.Save(person);
 

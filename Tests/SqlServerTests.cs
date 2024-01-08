@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EventPulse;
 
 namespace Tests;
@@ -27,11 +28,23 @@ public class SqlServerTests
     public async Task RetrievesAggregateRootFullyRestored()
     {
         var eventStore = CreateDefaultEventStore();
-        var person = new Person(new PersonCreatedEvent("John"));
+        var person = new Person(PersonCreatedEvent.Create("John"));
         person.UpdateName(new PersonNameUpdatedEvent("John Doe"));
         await eventStore.Save(person);
 
         var restoredPerson = await eventStore.Find<Person>(person.Id);
         Assert.Equal("John Doe", restoredPerson!.Name);
+    }
+
+    [Fact]
+    public void SerializeAndDeserializeEventUsingDefaultJsonSerializer()
+    {
+        var evt = PersonCreatedEvent.Create("John Doe");
+        var json = JsonSerializer.Serialize(evt);
+
+        var deserial = JsonSerializer.Deserialize(json, evt.GetType());
+        Assert.NotNull(deserial);
+        Assert.NotSame(evt, deserial);
+        Assert.Equal(evt, deserial);
     }
 }
