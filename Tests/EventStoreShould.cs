@@ -1,10 +1,7 @@
 using System.Collections.Concurrent;
-using System.Diagnostics.Tracing;
 using System.Text.Json;
 using System.Transactions;
 using EventPulse;
-using Microsoft.Identity.Client;
-using Microsoft.VisualBasic;
 using NSubstitute;
 
 namespace Tests;
@@ -83,7 +80,7 @@ public class SessionShould
 
         using (var session = new Session())
         {
-            var booking = session.Find<Booking>(id);
+            var booking = session.Find<Booking>("Booking", id);
             Assert.NotNull(booking);
         }
     }
@@ -115,7 +112,7 @@ public class BookingSerializer
     {
         return eventType switch
         {
-            "BookingCreated" => JsonSerializer.Deserialize<V1.BookingCreated>(evt)!,
+            "V1.BookingCreated" => JsonSerializer.Deserialize<V1.BookingCreated>(evt)!,
             _ => throw new NotSupportedException($"Event {eventType} not supported")
         };
     }
@@ -163,7 +160,7 @@ public class Booking
     public Booking(V1.BookingCreated evt)
     {
         (_id, _roomId, _guestId, _checkIn, _checkOut) = evt;
-        _events = new EventList("Booking", 1);
+        _events = new EventList("Booking", evt.BookingId);
         _events.Append(evt);
     }
 }
@@ -200,28 +197,33 @@ public class Session : IDisposable
         Database
             .EventsTable
             .AddRange(
-                _notPersisted.Select(
-                    evt =>
-                        new object[]
-                        {
-                            evt.StreamName,
-                            evt.StreamId,
-                            evt.Revision,
-                            serializer.Serialize(evt.Event)
-                        }
-                )
+                _notPersisted.Select(evt =>
+                {
+                    var (eventType, eventData) = serializer.Serialize(evt.Event);
+                    return new object[]
+                    {
+                        evt.StreamName,
+                        evt.StreamId,
+                        evt.Revision,
+                        eventType,
+                        eventData
+                    };
+                })
             );
 
         _transactionScope.Dispose();
     }
 
-    public TStream Find<TStream>(long id)
+    public TStream Find<TStream>(string streamName, long id)
     {
         IsHydrating = true;
         var serializer = new BookingSerializer();
         var events = Database
             .EventsTable
-            .Where(evt => evt[0].Equals(typeof(TStream).Name) && evt[1].Equals(id))
+            .Where(evt =>
+            {
+                return evt[0].Equals(streamName) && evt[1].Equals(id);
+            })
             .OrderBy(evt => evt[2])
             .Select(evt => serializer.Deserialize((string)evt[3]!, (string)evt[4]!))
             .ToList();
