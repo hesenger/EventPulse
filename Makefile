@@ -15,3 +15,8 @@ startdb:
 
 stopdb:
 	@docker-compose stop
+
+pack:
+	@rm -rf ./nupkg
+	@dotnet pack -c Release -o nupkg
+	@dotnet nuget push ./nupkg/*.nupkg -s https://api.nuget.org/v3/index.json -k $(NUGET_KEY)
