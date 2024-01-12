@@ -63,29 +63,6 @@ public class EventStoreShould
     }
 }
 
-public class SessionShould
-{
-    [Fact]
-    public void PersistEvents()
-    {
-        long id;
-        using (var session = new Session())
-        {
-            var evt = V1.BookingCreated.Create(1L, 1L, DateTime.Today, DateTime.Today.AddDays(3));
-            var booking = new Booking(evt);
-            id = evt.BookingId;
-
-            session.Complete();
-        }
-
-        using (var session = new Session())
-        {
-            var booking = session.Find<Booking>("Booking", id);
-            Assert.NotNull(booking);
-        }
-    }
-}
-
 public class BookingSerializer
 {
     public Booking Aggregate(Booking? booking, object evt)
@@ -94,6 +71,11 @@ public class BookingSerializer
         {
             case V1.BookingCreated created:
                 return new Booking(created);
+
+            case V1.BookingPaid paid:
+                booking!.RegisterPayment(paid);
+                return booking;
+
             default:
                 throw new NotSupportedException($"Event {evt.GetType()} not supported");
         }
@@ -104,6 +86,7 @@ public class BookingSerializer
         return evt switch
         {
             V1.BookingCreated created => ("V1.BookingCreated", JsonSerializer.Serialize(created)),
+            V1.BookingPaid paid => ("V1.BookingPaid", JsonSerializer.Serialize(paid)),
             _ => throw new NotSupportedException($"Event {evt.GetType()} not supported")
         };
     }
@@ -113,6 +96,7 @@ public class BookingSerializer
         return eventType switch
         {
             "V1.BookingCreated" => JsonSerializer.Deserialize<V1.BookingCreated>(evt)!,
+            "V1.BookingPaid" => JsonSerializer.Deserialize<V1.BookingPaid>(evt)!,
             _ => throw new NotSupportedException($"Event {eventType} not supported")
         };
     }
@@ -128,22 +112,36 @@ public static class Generator
 
 public static class V1
 {
+    public record BookingPaid(decimal AmountPaid, DateTime PaidAt);
+
     public record BookingCreated(
         long BookingId,
         long RoomId,
         long GuestId,
         DateTime CheckIn,
-        DateTime CheckOut
+        DateTime CheckOut,
+        decimal TotalPrice,
+        decimal AmountPaid
     )
     {
         public static BookingCreated Create(
             long roomId,
             long guestId,
             DateTime checkIn,
-            DateTime checkOut
+            DateTime checkOut,
+            decimal totalPrice,
+            decimal amountPaid
         )
         {
-            return new(Generator.Next<BookingCreated>(), roomId, guestId, checkIn, checkOut);
+            return new(
+                Generator.Next<BookingCreated>(),
+                roomId,
+                guestId,
+                checkIn,
+                checkOut,
+                totalPrice,
+                amountPaid
+            );
         }
     }
 }
@@ -156,119 +154,29 @@ public class Booking
     private long _guestId;
     private DateTime _checkIn;
     private DateTime _checkOut;
+    private decimal _totalPrice;
+    private decimal _amountPaid;
 
-    public Booking(V1.BookingCreated evt)
+    public decimal PendingAmount => _totalPrice - _amountPaid;
+
+    public Booking(V1.BookingCreated created)
     {
-        (_id, _roomId, _guestId, _checkIn, _checkOut) = evt;
-        _events = new EventList("Booking", evt.BookingId);
-        _events.Append(evt);
+        (_id, _roomId, _guestId, _checkIn, _checkOut, _totalPrice, _amountPaid) = created;
+        _events = new EventList("Booking", created.BookingId);
+        _events.Append(created);
+    }
+
+    public void RegisterPayment(V1.BookingPaid payment)
+    {
+        if (_amountPaid + payment.AmountPaid > _totalPrice)
+            throw new InvalidOperationException("Amount paid is greater than total price");
+
+        _amountPaid += payment.AmountPaid;
+        _events.Append(payment);
     }
 }
 
 public static class Database
 {
     public static List<object[]> EventsTable = new();
-}
-
-public class Session : IDisposable
-{
-    private static readonly Dictionary<Transaction, Session> _scopes = new();
-
-    public static Session Current => _scopes[Transaction.Current!];
-
-    public bool IsHydrating { get; private set; }
-
-    private readonly TransactionScope _transactionScope;
-    private readonly List<EventEntry> _notPersisted = new();
-
-    public Session()
-    {
-        _transactionScope = new TransactionScope(TransactionScopeOption.RequiresNew);
-        _scopes.Add(Transaction.Current!, this);
-    }
-
-    public void Track(EventEntry eventEntry) => _notPersisted.Add(eventEntry);
-
-    public void Complete() => _transactionScope.Complete();
-
-    public void Dispose()
-    {
-        var serializer = new BookingSerializer();
-        Database
-            .EventsTable
-            .AddRange(
-                _notPersisted.Select(evt =>
-                {
-                    var (eventType, eventData) = serializer.Serialize(evt.Event);
-                    return new object[]
-                    {
-                        evt.StreamName,
-                        evt.StreamId,
-                        evt.Revision,
-                        eventType,
-                        eventData
-                    };
-                })
-            );
-
-        _transactionScope.Dispose();
-    }
-
-    public TStream Find<TStream>(string streamName, long id)
-    {
-        IsHydrating = true;
-        var serializer = new BookingSerializer();
-        var events = Database
-            .EventsTable
-            .Where(evt =>
-            {
-                return evt[0].Equals(streamName) && evt[1].Equals(id);
-            })
-            .OrderBy(evt => evt[2])
-            .Select(evt => serializer.Deserialize((string)evt[3]!, (string)evt[4]!))
-            .ToList();
-
-        object? stream = null;
-        foreach (var evt in events)
-            stream = serializer.Aggregate((Booking?)stream, evt);
-
-        IsHydrating = false;
-        return (TStream)stream!;
-    }
-}
-
-public record EventEntry(string StreamName, object StreamId, int Revision, object Event);
-
-public class EventList
-{
-    private readonly List<object> _events = new();
-    public string StreamName { get; }
-    public object StreamId { get; }
-    private bool _hydrated = true;
-    private int _revision;
-
-    public EventList(string streamName, object streamId)
-    {
-        StreamName = streamName;
-        StreamId = streamId;
-    }
-
-    public void Append(object evt)
-    {
-        _events.Add(evt);
-        if (Session.Current.IsHydrating)
-        {
-            _hydrated = false;
-            return;
-        }
-
-        if (!_hydrated)
-        {
-            _hydrated = true;
-            _revision = _events.Count;
-        }
-
-        _revision++;
-        Session.Current.Track(new EventEntry(StreamName, StreamId, _revision, evt));
-    }
 }
