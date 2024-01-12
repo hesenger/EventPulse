@@ -2,8 +2,9 @@
 
 EventPulse provides a thin layer between your application and the event persistence
 for Event Sourcing systems. It's designed to be less intrusive as possible and
-avoid totally reflection, which means the real methods are used to retrieve the
-aggregations based in the events stored previously.
+avoid totally reflection (for sure we use Json serialization though), which means
+the real methods are used to retrieve the aggregations based in the events stored
+previously.
 
 ## Code
 
@@ -33,19 +34,71 @@ use them as reference to run the commands manually.
 
 ## Usage
 
-For web apps you likely want to register the EventStore instance in your
-service provider, but in fact there is no harm in using multiple instances or
-even a simple singlton since the actions are very atomic and not state dependant.
+For web apps you likely want to register the SessionFactory instance in your
+services provider.
 
 ```csharp
-var provider = new ListAggregatorProvider();
-provider.Register(new PersonEventAggregator());
-var eventStore = new EventStore(new InMemoryEventPersistor(), provider);
+long id;
+using (var session = sessionFactory.CreateSession())
+{
+    var evt = V1.BookingCreated.Create(
+        1L,
+        1L,
+        DateTime.Today,
+        DateTime.Today.AddDays(3),
+        300,
+        0
+    );
+    var booking = new Booking(evt);
+    booking.RegisterPayment(new V1.BookingPaid(100, DateTime.Today));
+    id = evt.BookingId;
 
-var person = new Person(new PersonCreatedEvent("John"));
-person.UpdateName(new PersonNameUpdatedEvent("John Doe"));
-await eventStore.Save(person);
+    session.Complete();
+}
 
-var restoredPerson = await eventStore.Find<Person>(person.Id);
-Assert.Equal("John Doe", restoredPerson!.Name);
+using (var session = CreateSession())
+{
+    var booking = session.Find<Booking>("Booking", id);
+    Assert.NotNull(booking);
+    Assert.Equal(200, booking!.PendingAmount);
+}
+
+public class Booking
+{
+    private readonly EventList _events;
+    private long _id;
+    private long _roomId;
+    private long _guestId;
+    private DateTime _checkIn;
+    private DateTime _checkOut;
+    private decimal _totalPrice;
+    private decimal _amountPaid;
+    public BookingStatus Status { get; private set; }
+
+    public decimal PendingAmount => _totalPrice - _amountPaid;
+
+    public Booking(V1.BookingCreated created)
+    {
+        (_id, _roomId, _guestId, _checkIn, _checkOut, _totalPrice, _amountPaid) = created;
+        Status = BookingStatus.Valid;
+
+        _events = new EventList("Booking", created.BookingId);
+        _events.Append(created);
+    }
+
+    public void RegisterPayment(V1.BookingPaid payment)
+    {
+        if (_amountPaid + payment.AmountPaid > _totalPrice)
+            throw new InvalidOperationException("Amount paid is greater than total price");
+
+        _amountPaid += payment.AmountPaid;
+        _events.Append(payment);
+    }
+
+    public void Cancel(V1.BookingCancelled cancelled)
+    {
+        Status = BookingStatus.Cancelled;
+        _events.Append(cancelled);
+    }
+}
 ```
