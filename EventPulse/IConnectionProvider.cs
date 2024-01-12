@@ -2,7 +2,7 @@ using System.Data;
 
 namespace EventPulse;
 
-public interface IDatabaseProvider
+public interface IConnectionProvider
 {
     IDbConnection GetConnection();
 }

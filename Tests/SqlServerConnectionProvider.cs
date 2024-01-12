@@ -4,11 +4,11 @@ using Microsoft.Data.SqlClient;
 
 namespace Tests;
 
-public class SqlServerDatabaseProvider : IDatabaseProvider
+public class SqlServerConnectionProvider : IConnectionProvider
 {
     private readonly string _connectionString;
 
-    public SqlServerDatabaseProvider(string connectionString)
+    public SqlServerConnectionProvider(string connectionString)
     {
         _connectionString = connectionString;
     }

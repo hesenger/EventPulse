@@ -4,13 +4,13 @@ namespace Tests;
 
 public class SqlServerFixture
 {
-    public readonly IDatabaseProvider DatabaseProvider;
+    public readonly IConnectionProvider DatabaseProvider;
 
     public SqlServerFixture()
     {
         var connectionString =
             "Server=localhost;Database=master;UID=sa;PWD=DevPassword-2024;Connect Timeout=5;TrustServerCertificate=True;";
-        DatabaseProvider = new SqlServerDatabaseProvider(connectionString);
+        DatabaseProvider = new SqlServerConnectionProvider(connectionString);
 
         DropAndCreateTable();
     }

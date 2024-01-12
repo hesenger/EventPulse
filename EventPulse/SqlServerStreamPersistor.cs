@@ -4,9 +4,9 @@ namespace EventPulse;
 
 public class SqlServerStreamPersistor : IStreamPersistor
 {
-    private readonly IDatabaseProvider _database;
+    private readonly IConnectionProvider _database;
 
-    public SqlServerStreamPersistor(IDatabaseProvider databaseProvider)
+    public SqlServerStreamPersistor(IConnectionProvider databaseProvider)
     {
         _database = databaseProvider;
     }
