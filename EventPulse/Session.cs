@@ -11,12 +11,12 @@ public interface IStreamPersistor
         string eventType,
         string eventData
     );
-    IEnumerable<EventResult> GetEvents(string streamName, long streamId);
+    IEnumerable<EventResult> GetEvents(string streamName, object streamId);
 }
 
 public record EventResult(
     string StreamName,
-    long StreamId,
+    object StreamId,
     int Revision,
     string EventType,
     string EventData

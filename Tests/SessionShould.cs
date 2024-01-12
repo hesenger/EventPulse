@@ -1,12 +1,24 @@
+using EventPulse;
+
 namespace Tests;
 
 public class SessionShould
 {
+    private IStreamPersistor _persistor = new InMemoryStreamPersistor();
+
+    private Session CreateSession()
+    {
+        var serializerProvider = new SerializerProvider();
+        serializerProvider.Register("Booking", new BookingSerializer());
+
+        return new Session(serializerProvider, _persistor);
+    }
+
     [Fact]
     public void RetrievePersistedEvents()
     {
         long id;
-        using (var session = new Session())
+        using (var session = CreateSession())
         {
             var evt = V1.BookingCreated.Create(
                 1L,
@@ -23,7 +35,7 @@ public class SessionShould
             session.Complete();
         }
 
-        using (var session = new Session())
+        using (var session = CreateSession())
         {
             var booking = session.Find<Booking>("Booking", id);
             Assert.NotNull(booking);
