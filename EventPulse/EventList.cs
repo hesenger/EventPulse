@@ -3,15 +3,13 @@ namespace EventPulse;
 public class EventList
 {
     private readonly List<object> _events = new();
-    public string StreamName { get; }
-    public object StreamId { get; }
-    private bool _hydrated = true;
-    private int _revision;
+    private readonly string _streamName;
+    private readonly object _streamId;
 
     public EventList(string streamName, object streamId)
     {
-        StreamName = streamName;
-        StreamId = streamId;
+        _streamName = streamName;
+        _streamId = streamId;
     }
 
     public void Append(object evt)
@@ -19,17 +17,9 @@ public class EventList
         _events.Add(evt);
         if (Session.Current.IsHydrating)
         {
-            _hydrated = false;
             return;
         }
 
-        if (!_hydrated)
-        {
-            _hydrated = true;
-            _revision = _events.Count;
-        }
-
-        _revision++;
-        Session.Current.Track(new EventEntry(StreamName, StreamId, _revision, evt));
+        Session.Current.Track(new EventEntry(_streamName, _streamId, _events.Count, evt));
     }
 }
