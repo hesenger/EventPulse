@@ -17,6 +17,10 @@ public class BookingSerializer : IStreamSerializer
                 booking!.RegisterPayment(paid);
                 return booking;
 
+            case V1.BookingCancelled cancelled:
+                booking!.Cancel(cancelled);
+                return booking;
+
             default:
                 throw new NotSupportedException($"Event {evt.GetType()} not supported");
         }
@@ -28,6 +32,8 @@ public class BookingSerializer : IStreamSerializer
         {
             V1.BookingCreated created => ("V1.BookingCreated", JsonSerializer.Serialize(created)),
             V1.BookingPaid paid => ("V1.BookingPaid", JsonSerializer.Serialize(paid)),
+            V1.BookingCancelled cancelled
+                => ("V1.BookingCancelled", JsonSerializer.Serialize(cancelled)),
             _ => throw new NotSupportedException($"Event {evt.GetType()} not supported")
         };
     }
@@ -38,6 +44,7 @@ public class BookingSerializer : IStreamSerializer
         {
             "V1.BookingCreated" => JsonSerializer.Deserialize<V1.BookingCreated>(evt)!,
             "V1.BookingPaid" => JsonSerializer.Deserialize<V1.BookingPaid>(evt)!,
+            "V1.BookingCancelled" => JsonSerializer.Deserialize<V1.BookingCancelled>(evt)!,
             _ => throw new NotSupportedException($"Event {eventType} not supported")
         };
     }

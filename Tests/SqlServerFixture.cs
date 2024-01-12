@@ -9,7 +9,7 @@ public class SqlServerFixture
     public SqlServerFixture()
     {
         var connectionString =
-            "Server=localhost;Database=master;UID=sa;PWD=DevPassword-2024-01-06;Connect Timeout=5;TrustServerCertificate=True;";
+            "Server=localhost;Database=master;UID=sa;PWD=DevPassword-2024;Connect Timeout=5;TrustServerCertificate=True;";
         DatabaseProvider = new SqlServerDatabaseProvider(connectionString);
 
         DropAndCreateTable();
@@ -18,6 +18,8 @@ public class SqlServerFixture
     private void DropAndCreateTable()
     {
         using var connection = DatabaseProvider.GetConnection();
+        connection.Open();
+
         using var command = connection.CreateCommand();
         command.CommandText = "IF OBJECT_ID('Events', 'U') IS NOT NULL DROP TABLE Events";
         command.ExecuteNonQuery();
@@ -27,11 +29,13 @@ public class SqlServerFixture
             CREATE TABLE Events
             (
                 Id INT PRIMARY KEY IDENTITY(1,1),
-                AggregationId NVARCHAR(100) NOT NULL,
+                StreamName NVARCHAR(100) NOT NULL,
+                StreamId BIGINT NOT NULL,
+                Revision INT NOT NULL,
                 EventType NVARCHAR(100) NOT NULL,
                 EventData NVARCHAR(MAX) NOT NULL,
-                Timestamp DATETIME2 NOT NULL
-                INDEX IX_AggregationId NONCLUSTERED (AggregationId)
+                Timestamp DATETIME2 NOT NULL,
+                INDEX IX_StreamRevision UNIQUE (StreamName, StreamId, Revision)
             )";
         command.ExecuteNonQuery();
     }

@@ -16,7 +16,6 @@ public class SqlServerDatabaseProvider : IDatabaseProvider
     public IDbConnection GetConnection()
     {
         var cnx = new SqlConnection(_connectionString);
-        cnx.Open();
         return cnx;
     }
 }

@@ -2,53 +2,6 @@ using System.Transactions;
 
 namespace EventPulse;
 
-public interface IStreamPersistor
-{
-    void Persist(
-        string streamName,
-        object streamId,
-        int revision,
-        string eventType,
-        string eventData
-    );
-    IEnumerable<EventResult> GetEvents(string streamName, object streamId);
-}
-
-public record EventResult(
-    string StreamName,
-    object StreamId,
-    int Revision,
-    string EventType,
-    string EventData
-);
-
-public interface IStreamSerializer
-{
-    (string eventType, string eventData) Serialize(object @event);
-    object Deserialize(string eventType, string eventData);
-    object Aggregate(object? stream, object evt);
-}
-
-public class SerializerProvider
-{
-    private readonly Dictionary<string, IStreamSerializer> _serializers = new();
-
-    public void Register(string streamName, IStreamSerializer serializer)
-    {
-        _serializers.Add(streamName, serializer);
-    }
-
-    public IStreamSerializer GetSerializer(string streamName)
-    {
-        return (IStreamSerializer)_serializers[streamName];
-    }
-}
-
-public class SessionFactory(SerializerProvider serializerProvider, IStreamPersistor persistor)
-{
-    public Session Create() => new(serializerProvider, persistor);
-}
-
 public class Session : IDisposable
 {
     private static readonly Dictionary<Transaction, Session> _scopes = new();
@@ -61,6 +14,7 @@ public class Session : IDisposable
     private readonly IStreamPersistor _persistor;
     private readonly TransactionScope _transactionScope;
     private readonly List<EventEntry> _notPersisted = new();
+    private bool _complete = false;
 
     public Session(SerializerProvider serializerProvider, IStreamPersistor persistor)
     {
@@ -72,7 +26,7 @@ public class Session : IDisposable
 
     public void Track(EventEntry eventEntry) => _notPersisted.Add(eventEntry);
 
-    public void Complete() => _transactionScope.Complete();
+    public void Complete() => _complete = true;
 
     public void Dispose()
     {
@@ -82,6 +36,9 @@ public class Session : IDisposable
             var (eventType, eventData) = serializer.Serialize(evt.Event);
             _persistor.Persist(evt.StreamName, evt.StreamId, evt.Revision, eventType, eventData);
         });
+
+        if (_complete)
+            _transactionScope.Complete();
 
         _transactionScope.Dispose();
     }
@@ -100,41 +57,5 @@ public class Session : IDisposable
 
         IsHydrating = false;
         return (TStream)stream!;
-    }
-}
-
-public record EventEntry(string StreamName, object StreamId, int Revision, object Event);
-
-public class EventList
-{
-    private readonly List<object> _events = new();
-    public string StreamName { get; }
-    public object StreamId { get; }
-    private bool _hydrated = true;
-    private int _revision;
-
-    public EventList(string streamName, object streamId)
-    {
-        StreamName = streamName;
-        StreamId = streamId;
-    }
-
-    public void Append(object evt)
-    {
-        _events.Add(evt);
-        if (Session.Current.IsHydrating)
-        {
-            _hydrated = false;
-            return;
-        }
-
-        if (!_hydrated)
-        {
-            _hydrated = true;
-            _revision = _events.Count;
-        }
-
-        _revision++;
-        Session.Current.Track(new EventEntry(StreamName, StreamId, _revision, evt));
     }
 }

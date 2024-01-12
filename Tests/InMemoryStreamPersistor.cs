@@ -8,9 +8,9 @@ public class InMemoryStreamPersistor : IStreamPersistor
 
     public IEnumerable<EventResult> GetEvents(string streamName, object streamId)
     {
-        return _events.Where(
-            evt => evt.StreamName.Equals(streamName) && evt.StreamId.Equals(streamId)
-        );
+        return _events
+            .Where(evt => evt.StreamName.Equals(streamName) && evt.StreamId.Equals(streamId))
+            .OrderBy(evt => evt.Revision);
     }
 
     public void Persist(

@@ -4,7 +4,7 @@ services:
   sql-server:
     image: mcr.microsoft.com/azure-sql-edge:latest
     environment:
-      MSSQL_SA_PASSWORD: "DevPassword-2024-01-06"
+      MSSQL_SA_PASSWORD: "DevPassword-2024"
       ACCEPT_EULA: "Y"
     ports:
       - "1433:1433"

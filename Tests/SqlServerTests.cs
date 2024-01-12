@@ -1,4 +1,3 @@
-using System.Text.Json;
 using EventPulse;
 
 namespace Tests;
@@ -6,45 +5,47 @@ namespace Tests;
 [Collection("SqlServerCollection")]
 public class SqlServerTests
 {
-    private SqlServerFixture _fixture;
+    private readonly SessionFactory _sessionFactory;
 
     public SqlServerTests(SqlServerFixture fixture)
     {
-        _fixture = fixture;
-    }
+        var serializerProvider = new SerializerProvider();
+        serializerProvider.Register("Booking", new BookingSerializer());
 
-    private EventStore CreateDefaultEventStore()
-    {
-        var provider = new ListAggregatorProvider();
-        provider.Register(new PersonEventAggregator());
-
-        return new EventStore(
-            new SqlServerEventPersistor(_fixture.DatabaseProvider, new JsonEventSerializer()),
-            provider
+        _sessionFactory = new SessionFactory(
+            serializerProvider,
+            new SqlServerStreamPersistor(fixture.DatabaseProvider)
         );
     }
 
-    [Fact]
-    public async Task RetrievesAggregateRootFullyRestored()
-    {
-        var eventStore = CreateDefaultEventStore();
-        var person = new Person(PersonCreatedEvent.Create("John"));
-        person.UpdateName(new PersonNameUpdatedEvent("John Doe"));
-        await eventStore.Save(person);
-
-        var restoredPerson = await eventStore.Find<Person>(person.Id);
-        Assert.Equal("John Doe", restoredPerson!.Name);
-    }
+    public Session CreateSession() => _sessionFactory.Create();
 
     [Fact]
-    public void SerializeAndDeserializeEventUsingDefaultJsonSerializer()
+    public void RetrievePersistedEvents()
     {
-        var evt = PersonCreatedEvent.Create("John Doe");
-        var json = JsonSerializer.Serialize(evt);
+        long id;
+        using (var session = CreateSession())
+        {
+            var evt = V1.BookingCreated.Create(
+                1L,
+                1L,
+                DateTime.Today,
+                DateTime.Today.AddDays(3),
+                300,
+                0
+            );
+            var booking = new Booking(evt);
+            booking.RegisterPayment(new V1.BookingPaid(100, DateTime.Today));
+            id = evt.BookingId;
 
-        var deserial = JsonSerializer.Deserialize(json, evt.GetType());
-        Assert.NotNull(deserial);
-        Assert.NotSame(evt, deserial);
-        Assert.Equal(evt, deserial);
+            session.Complete();
+        }
+
+        using (var session = CreateSession())
+        {
+            var booking = session.Find<Booking>("Booking", id);
+            Assert.NotNull(booking);
+            Assert.Equal(200, booking!.PendingAmount);
+        }
     }
 }

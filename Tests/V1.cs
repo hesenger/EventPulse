@@ -2,6 +2,8 @@ namespace Tests;
 
 public static class V1
 {
+    public record BookingCancelled(DateTime CanceledAt);
+
     public record BookingPaid(decimal AmountPaid, DateTime PaidAt);
 
     public record BookingCreated(
