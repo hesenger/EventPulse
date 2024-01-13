@@ -4,7 +4,7 @@ namespace Tests;
 
 public class Booking
 {
-    private readonly EventList _events;
+    private readonly EventStream _events;
     private long _id;
     private long _roomId;
     private long _guestId;
@@ -21,7 +21,7 @@ public class Booking
         (_id, _roomId, _guestId, _checkIn, _checkOut, _totalPrice, _amountPaid) = created;
         Status = BookingStatus.Valid;
 
-        _events = new EventList("Booking", created.BookingId);
+        _events = new EventStream("Booking", created.BookingId);
         _events.Append(created);
     }
 

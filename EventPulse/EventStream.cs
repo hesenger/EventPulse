@@ -1,12 +1,12 @@
 namespace EventPulse;
 
-public class EventList
+public class EventStream
 {
     private readonly List<object> _events = new();
     private readonly string _streamName;
     private readonly object _streamId;
 
-    public EventList(string streamName, object streamId)
+    public EventStream(string streamName, object streamId)
     {
         _streamName = streamName;
         _streamId = streamId;
