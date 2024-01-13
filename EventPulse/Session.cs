@@ -4,6 +4,8 @@ namespace EventPulse;
 
 public class Session : IDisposable
 {
+    public static readonly TimeSpan DefaultSessionTimeout = TimeSpan.FromSeconds(3);
+
     private static readonly Dictionary<Transaction, Session> _scopes = new();
 
     public static Session Current => _scopes[Transaction.Current!];
@@ -30,7 +32,7 @@ public class Session : IDisposable
             TransactionScopeOption.Required,
             new TransactionOptions
             {
-                Timeout = TimeSpan.FromSeconds(3),
+                Timeout = DefaultSessionTimeout,
                 IsolationLevel = IsolationLevel.ReadCommitted
             },
             TransactionScopeAsyncFlowOption.Enabled

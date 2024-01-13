@@ -1,3 +1,4 @@
+using System.Data.Common;
 using EventPulse;
 
 namespace Tests;
@@ -16,26 +17,28 @@ public class SessionShould
 
     public Session CreateSession() => _sessionFactory.Create();
 
+    private long CreateBookingWithPartialPayment()
+    {
+        using var session = CreateSession();
+        var evt = V1.BookingCreated.Create(
+            1L,
+            1L,
+            DateTime.Today,
+            DateTime.Today.AddDays(3),
+            300,
+            0
+        );
+        var booking = new Booking(evt);
+        booking.RegisterPayment(new V1.BookingPaid(100, DateTime.Today));
+
+        session.Complete();
+        return evt.BookingId;
+    }
+
     [Fact]
     public void RetrievePersistedEvents()
     {
-        long id;
-        using (var session = CreateSession())
-        {
-            var evt = V1.BookingCreated.Create(
-                1L,
-                1L,
-                DateTime.Today,
-                DateTime.Today.AddDays(3),
-                300,
-                0
-            );
-            var booking = new Booking(evt);
-            booking.RegisterPayment(new V1.BookingPaid(100, DateTime.Today));
-            id = evt.BookingId;
-
-            session.Complete();
-        }
+        var id = CreateBookingWithPartialPayment();
 
         using (var session = CreateSession())
         {
@@ -48,24 +51,9 @@ public class SessionShould
     [Fact]
     public void AppendEventsExistingStream()
     {
-        long id;
-        using (var session = CreateSession())
-        {
-            var evt = V1.BookingCreated.Create(
-                1L,
-                1L,
-                DateTime.Today,
-                DateTime.Today.AddDays(3),
-                300,
-                0
-            );
-            var booking = new Booking(evt);
-            booking.RegisterPayment(new V1.BookingPaid(100, DateTime.Today));
-            id = evt.BookingId;
+        var id = CreateBookingWithPartialPayment();
 
-            session.Complete();
-        }
-
+        // append events
         using (var session = CreateSession())
         {
             var booking = session.Find<Booking>("Booking", id);
@@ -74,10 +62,30 @@ public class SessionShould
             session.Complete();
         }
 
+        // assert events committed were serialized and permanently added
+        // to the session
         using (var session = CreateSession())
         {
             var booking = session.Find<Booking>("Booking", id);
             Assert.Equal(BookingStatus.Cancelled, booking!.Status);
+        }
+    }
+
+    [Fact]
+    public void RollbackChangesWhenNonCompleted()
+    {
+        var id = CreateBookingWithPartialPayment();
+
+        using (var session = CreateSession())
+        {
+            var booking = session.Find<Booking>("Booking", id);
+            booking.Cancel(new V1.BookingCancelled(DateTime.Today));
+        }
+
+        using (var session = CreateSession())
+        {
+            var booking = session.Find<Booking>("Booking", id);
+            Assert.Equal(BookingStatus.Valid, booking!.Status);
         }
     }
 }
