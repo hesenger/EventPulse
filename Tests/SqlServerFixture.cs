@@ -4,20 +4,20 @@ namespace Tests;
 
 public class SqlServerFixture
 {
-    public readonly IConnectionProvider DatabaseProvider;
+    public readonly IConnectionProvider ConnectionProvider;
 
     public SqlServerFixture()
     {
         var connectionString =
             "Server=localhost;Database=master;UID=sa;PWD=DevPassword-2024;Connect Timeout=5;TrustServerCertificate=True;";
-        DatabaseProvider = new SqlServerConnectionProvider(connectionString);
+        ConnectionProvider = new SqlServerConnectionProvider(connectionString);
 
         DropAndCreateTable();
     }
 
     private void DropAndCreateTable()
     {
-        using var connection = DatabaseProvider.GetConnection();
+        using var connection = ConnectionProvider.GetConnection();
         connection.Open();
 
         using var command = connection.CreateCommand();

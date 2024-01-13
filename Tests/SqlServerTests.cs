@@ -14,7 +14,7 @@ public class SqlServerTests
 
         _sessionFactory = new SessionFactory(
             serializerProvider,
-            new SqlServerStreamPersistor(fixture.DatabaseProvider)
+            new SqlServerStreamPersistor(fixture.ConnectionProvider)
         );
     }
 

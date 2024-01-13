@@ -20,8 +20,21 @@ public class Session : IDisposable
     {
         _serializerProvider = serializerProvider;
         _persistor = persistor;
-        _transactionScope = new TransactionScope(TransactionScopeOption.RequiresNew);
+        _transactionScope = CreateScope();
         _scopes.Add(Transaction.Current!, this);
+    }
+
+    private TransactionScope CreateScope()
+    {
+        return new TransactionScope(
+            TransactionScopeOption.Required,
+            new TransactionOptions
+            {
+                Timeout = TimeSpan.FromSeconds(3),
+                IsolationLevel = IsolationLevel.ReadCommitted
+            },
+            TransactionScopeAsyncFlowOption.Enabled
+        );
     }
 
     public void Track(EventEntry eventEntry) => _notPersisted.Add(eventEntry);
@@ -30,15 +43,23 @@ public class Session : IDisposable
 
     public void Dispose()
     {
-        _notPersisted.ForEach(evt =>
-        {
-            var serializer = _serializerProvider.GetSerializer(evt.StreamName);
-            var (eventType, eventData) = serializer.Serialize(evt.Event);
-            _persistor.Persist(evt.StreamName, evt.StreamId, evt.Revision, eventType, eventData);
-        });
-
         if (_complete)
+        {
+            _notPersisted.ForEach(evt =>
+            {
+                var serializer = _serializerProvider.GetSerializer(evt.StreamName);
+                var (eventType, eventData) = serializer.Serialize(evt.Event);
+                _persistor.Persist(
+                    evt.StreamName,
+                    evt.StreamId,
+                    evt.Revision,
+                    eventType,
+                    eventData
+                );
+            });
+
             _transactionScope.Complete();
+        }
 
         _transactionScope.Dispose();
     }
