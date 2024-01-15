@@ -10,13 +10,12 @@ public class Session : IDisposable
 
     public static Session Current => _scopes[Transaction.Current!];
 
-    public bool IsHydrating { get; private set; }
-
     private readonly SerializerProvider _serializerProvider;
     private readonly IStreamPersistor _persistor;
     private readonly TransactionScope _transactionScope;
     private readonly List<EventEntry> _notPersisted = new();
     private bool _complete = false;
+    private bool _hydrating = false;
 
     public Session(SerializerProvider serializerProvider, IStreamPersistor persistor)
     {
@@ -39,7 +38,11 @@ public class Session : IDisposable
         );
     }
 
-    public void Track(EventEntry eventEntry) => _notPersisted.Add(eventEntry);
+    public void Track(EventEntry eventEntry)
+    {
+        if (!_hydrating)
+            _notPersisted.Add(eventEntry);
+    }
 
     public void Complete() => _complete = true;
 
@@ -68,7 +71,7 @@ public class Session : IDisposable
 
     public TStream Find<TStream>(string streamName, long id)
     {
-        IsHydrating = true;
+        _hydrating = true;
         var serializer = _serializerProvider.GetSerializer(streamName);
         var events = _persistor
             .GetEvents(streamName, id)
@@ -78,7 +81,7 @@ public class Session : IDisposable
         foreach (var evt in events)
             stream = serializer.Aggregate(stream, evt);
 
-        IsHydrating = false;
+        _hydrating = false;
         return (TStream)stream!;
     }
 }

@@ -15,9 +15,6 @@ public class EventStream
     public void Append(object evt)
     {
         _events.Add(evt);
-        if (Session.Current.IsHydrating)
-            return;
-
         Session.Current.Track(new EventEntry(_streamName, _streamId, _events.Count, evt));
     }
 }
